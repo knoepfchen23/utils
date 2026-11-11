@@ -172,8 +172,64 @@ pub unsafe fn sysctlbyname(name: &[u8]) -> bool {
     value != 0
 }
 
+// Mosaik's runtime detection of target CPU features from the kernel's
+// table of the ID registers (`cpu.features.v1`), at their safe value over
+// every CPU, the fields programs may not use zero.
+#[cfg(target_os = "tessera")]
+#[macro_export]
+#[doc(hidden)]
+macro_rules! __detect_target_features {
+    ($($tf:tt),+) => {{
+        $($crate::check!($tf) & )+ true
+    }};
+}
+
+// Mosaik `check!` macro: each target feature by the fields of the ID
+// registers that Linux's hwcaps above stand for.
+#[cfg(target_os = "tessera")]
+#[macro_export]
+#[doc(hidden)]
+macro_rules! check {
+    ("aes") => {
+        // `ID_AA64ISAR0_EL1.AES` 2: AES and PMULL.
+        $crate::tessera::field(
+            $crate::tessera::register($crate::tessera::keys::ID_AA64ISAR0_EL1),
+            4,
+        ) >= 2
+    };
+    ("dit") => {
+        // `ID_AA64PFR0_EL1.DIT`.
+        $crate::tessera::field(
+            $crate::tessera::register($crate::tessera::keys::ID_AA64PFR0_EL1),
+            48,
+        ) >= 1
+    };
+    ("sha2") => {
+        // `ID_AA64ISAR0_EL1.SHA2` 1: SHA-256.
+        $crate::tessera::field(
+            $crate::tessera::register($crate::tessera::keys::ID_AA64ISAR0_EL1),
+            12,
+        ) >= 1
+    };
+    ("sha3") => {{
+        // `ID_AA64ISAR0_EL1.SHA2` 2, SHA-512, and `SHA3` 1.
+        let isar0 = $crate::tessera::register($crate::tessera::keys::ID_AA64ISAR0_EL1);
+        $crate::tessera::field(isar0, 12) >= 2 && $crate::tessera::field(isar0, 32) >= 1
+    }};
+    ("sm4") => {{
+        // `ID_AA64ISAR0_EL1.SM3` and `SM4`.
+        let isar0 = $crate::tessera::register($crate::tessera::keys::ID_AA64ISAR0_EL1);
+        $crate::tessera::field(isar0, 36) >= 1 && $crate::tessera::field(isar0, 40) >= 1
+    }};
+}
+
 // On other targets, runtime CPU feature detection is unavailable
-#[cfg(not(any(target_vendor = "apple", target_os = "linux", target_os = "android",)))]
+#[cfg(not(any(
+    target_vendor = "apple",
+    target_os = "linux",
+    target_os = "android",
+    target_os = "tessera",
+)))]
 #[macro_export]
 #[doc(hidden)]
 macro_rules! __detect_target_features {

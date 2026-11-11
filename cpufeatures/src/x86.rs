@@ -29,6 +29,7 @@ macro_rules! __unless_target_features {
 }
 
 /// Use CPUID to detect the presence of all supplied target features.
+#[cfg(not(target_os = "tessera"))]
 #[macro_export]
 #[doc(hidden)]
 macro_rules! __detect_target_features {
@@ -49,6 +50,43 @@ macro_rules! __detect_target_features {
         let cr = unsafe {
             [cpuid(1), cpuid_count(7, 0), cpuid_count(7, 1)]
         };
+
+        $($crate::check!(cr, $tf) & )+ true
+    }};
+}
+
+/// Mosaik: the registers of the CPUID leaves as the kernel's table of CPU
+/// features holds them (`cpu.features.v1`): what a program may use at its
+/// safe value over every CPU, which may be narrower than what `CPUID`
+/// shows of the running CPU.
+#[cfg(target_os = "tessera")]
+#[macro_export]
+#[doc(hidden)]
+macro_rules! __detect_target_features {
+    ($($tf:tt),+) => {{
+        use core::arch::x86_64::CpuidResult;
+        use $crate::tessera::{cpuid_register as register, keys};
+
+        let cr = [
+            CpuidResult {
+                eax: 0,
+                ebx: 0,
+                ecx: register(keys::LEAF_1_ECX),
+                edx: register(keys::LEAF_1_EDX),
+            },
+            CpuidResult {
+                eax: 0,
+                ebx: register(keys::LEAF_7_EBX),
+                ecx: register(keys::LEAF_7_ECX),
+                edx: register(keys::LEAF_7_EDX),
+            },
+            CpuidResult {
+                eax: register(keys::LEAF_7_1_EAX),
+                ebx: 0,
+                ecx: 0,
+                edx: 0,
+            },
+        ];
 
         $($crate::check!(cr, $tf) & )+ true
     }};

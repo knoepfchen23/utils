@@ -22,6 +22,14 @@ mod x86;
 #[cfg(miri)]
 mod miri;
 
+#[cfg(not(miri))]
+#[cfg(all(
+    target_os = "tessera",
+    any(target_arch = "aarch64", target_arch = "x86_64")
+))]
+#[doc(hidden)]
+pub mod tessera;
+
 #[cfg(not(any(
     target_arch = "aarch64",
     target_arch = "loongarch64",
